@@ -1,0 +1,51 @@
+{
+    "name": "mortogo321/laravel-thai-promptpay",
+    "description": "Thai PromptPay QR Code Payment Generator for Laravel",
+    "keywords": [
+        "laravel",
+        "promptpay",
+        "thailand",
+        "qr-code",
+        "payment"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/mortogo321/laravel-thai-promptpay",
+    "authors": [
+        {
+            "name": "Mor",
+            "email": "morgoto321@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1|^8.2|^8.3",
+        "illuminate/support": "^10.0|^11.0",
+        "endroid/qr-code": "^5.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0",
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mortogo321\\LaravelThaiPromptPay\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Mortogo321\\LaravelThaiPromptPay\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Mortogo321\\LaravelThaiPromptPay\\PromptPayServiceProvider"
+            ],
+            "aliases": {
+                "PromptPay": "Mortogo321\\LaravelThaiPromptPay\\Facades\\PromptPay"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
