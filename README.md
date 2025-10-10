@@ -1,8 +1,8 @@
 # Laravel Thai PromptPay
 
-[![Latest Version](https://img.shields.io/packagist/v/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://packagist.org/packages/mortogo321/laravel-thai-promptpay)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://packagist.org/packages/mortogo321/laravel-thai-promptpay)
 [![Total Downloads](https://img.shields.io/packagist/dt/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://packagist.org/packages/mortogo321/laravel-thai-promptpay)
-[![License](https://img.shields.io/packagist/l/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://packagist.org/packages/mortogo321/laravel-thai-promptpay)
+[![GitHub License](https://img.shields.io/github/license/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://github.com/mortogo321/laravel-thai-promptpay/blob/main/LICENSE)
 [![PHP Version](https://img.shields.io/packagist/php-v/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://packagist.org/packages/mortogo321/laravel-thai-promptpay)
 
 A Laravel package for generating Thai PromptPay QR codes for payment processing. This package supports generating QR codes for both Thai phone numbers and National ID numbers, with optional payment amounts.
