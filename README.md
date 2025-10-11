@@ -23,7 +23,7 @@ A Laravel package for generating Thai PromptPay QR codes for payment processing.
 ## Requirements
 
 - PHP 8.1 or higher
-- Laravel 10.x or 11.x
+- Laravel 10.x or higher
 
 ## Installation
 
