@@ -192,6 +192,6 @@ class PromptPayQR
         }
 
         $crc = $crc & 0xFFFF;
-        return strtoupper(dechex($crc));
+        return strtoupper(str_pad(dechex($crc), 4, '0', STR_PAD_LEFT));
     }
 }
