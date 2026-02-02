@@ -120,18 +120,27 @@ class PromptPayQR
     {
         // Remove all non-numeric characters
         $identifier = preg_replace('/[^0-9]/', '', $identifier);
+        $length = strlen($identifier);
 
-        if (strlen($identifier) === 10 && $identifier[0] === '0') {
-            // Thai phone number (10 digits starting with 0)
-            return '66' . substr($identifier, 1); // Convert to international format
-        } elseif (strlen($identifier) === 9) {
+        if ($length === 10) {
+            if ($identifier[0] === '0') {
+                // Thai phone number (10 digits starting with 0)
+                return '66' . substr($identifier, 1);
+            }
+            // 10 digits not starting with 0 - treat as phone without leading 0
+            // Prepend 66 for international format
+            return '66' . $identifier;
+        } elseif ($length === 9) {
             // Phone number without leading 0
             return '66' . $identifier;
-        } elseif (strlen($identifier) === 13) {
-            // Thai National ID (13 digits)
+        } elseif ($length === 13) {
+            // Thai National ID or Tax ID (13 digits)
             return $identifier;
-        } elseif (strlen($identifier) === 15 && str_starts_with($identifier, '66')) {
-            // Already in e-wallet format
+        } elseif ($length === 12 && str_starts_with($identifier, '66')) {
+            // Already in international format (66XXXXXXXXX)
+            return $identifier;
+        } elseif ($length === 15 && str_starts_with($identifier, '66')) {
+            // e-Wallet format
             return $identifier;
         }
 
