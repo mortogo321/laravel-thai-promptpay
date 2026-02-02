@@ -199,20 +199,23 @@
 <body>
     <div class="container">
         <h1>🇹🇭 PromptPay QR Generator</h1>
-        <p class="subtitle">Generate Thai PromptPay QR codes instantly</p>
+        <p class="subtitle">Generate Thai PromptPay QR codes following BOT specification</p>
 
         <div class="error" id="error"></div>
 
         <form id="promptpay-form">
             <div class="form-group">
-                <label for="identifier">Phone Number or National ID</label>
+                <label for="identifier">Phone Number, National ID, Tax ID, or e-Wallet</label>
                 <input
                     type="text"
                     id="identifier"
                     name="identifier"
-                    placeholder="0812345678 or 1234567890123"
+                    placeholder="0812345678, 1234567890123, or 15-digit e-Wallet"
                     required
                 >
+                <small style="color: #718096; font-size: 12px; margin-top: 4px; display: block;">
+                    Mobile: 10 digits (06/08/09) | ID/Tax: 13 digits | e-Wallet: 15 digits
+                </small>
             </div>
 
             <div class="form-group">
@@ -241,6 +244,7 @@
         <div class="qr-result" id="qr-result">
             <div class="qr-info">
                 <p><strong>Identifier:</strong> <span id="result-identifier"></span></p>
+                <p><strong>Type:</strong> <span id="result-type"></span></p>
                 <p><strong>Amount:</strong> <span id="result-amount"></span></p>
             </div>
             <img id="qr-image" src="" alt="PromptPay QR Code">
@@ -323,9 +327,20 @@
         // Display result
         function displayResult(data) {
             document.getElementById('result-identifier').textContent = data.identifier;
+            document.getElementById('result-type').textContent = formatType(data.type);
             document.getElementById('result-amount').textContent = data.amount ? `฿${parseFloat(data.amount).toFixed(2)}` : 'Open Amount';
             document.getElementById('qr-image').src = data.qr_code;
             document.getElementById('qr-result').classList.add('show');
+        }
+
+        // Format identifier type for display
+        function formatType(type) {
+            const types = {
+                'mobile': 'Mobile Phone',
+                'tax_id': 'National ID / Tax ID',
+                'ewallet': 'e-Wallet'
+            };
+            return types[type] || type || 'Unknown';
         }
 
         // Show/hide functions

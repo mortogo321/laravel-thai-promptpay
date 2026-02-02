@@ -37,10 +37,13 @@ class PromptPayController extends Controller
                 $validated['size'] ?? 300
             );
 
+            $identifierType = $this->promptPay->getIdentifierType($validated['identifier']);
+
             return response()->json([
                 'success' => true,
                 'qr_code' => $qrCode,
                 'identifier' => $validated['identifier'],
+                'type' => $identifierType,
                 'amount' => $validated['amount'] ?? null,
             ]);
         } catch (\InvalidArgumentException $e) {

@@ -163,6 +163,8 @@ axios.post('/promptpay/generate', {
     size: 300                  // Optional (default: 300)
 })
 .then(response => {
+    // response.data: { success, qr_code, identifier, type, amount }
+    // type: 'mobile' | 'tax_id' | 'ewallet'
     document.getElementById('qr-image').src = response.data.qr_code;
 });
 ```
