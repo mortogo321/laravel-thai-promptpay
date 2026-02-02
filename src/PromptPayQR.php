@@ -19,7 +19,7 @@ class PromptPayQR
     private const COUNTRY_CODE = '58';
     private const CRC = '63';
 
-    private const APP_ID_THAILAND = '0016A000000677010111';
+    private const APP_ID_THAILAND = 'A000000677010111';
     private const APP_ID_TAG = '00';
     private const ACCOUNT_TAG = '01';
 
@@ -48,13 +48,13 @@ class PromptPayQR
         }
 
         $payload .= $this->buildTag(self::COUNTRY_CODE, self::COUNTRY_TH);
-        $payload .= self::CRC . '04'; // CRC placeholder
+        $payload .= self::CRC . '04'; // CRC tag with length 04
 
-        // Calculate CRC16-CCITT
+        // Calculate CRC16-CCITT over payload including "6304"
         $crc = $this->calculateCRC16($payload);
-        $payload = substr($payload, 0, -4) . strtoupper($crc);
 
-        return $payload;
+        // Append 4-char CRC checksum
+        return $payload . strtoupper($crc);
     }
 
     /**
@@ -124,23 +124,22 @@ class PromptPayQR
 
         if ($length === 10) {
             if ($identifier[0] === '0') {
-                // Thai phone number (10 digits starting with 0)
-                return '66' . substr($identifier, 1);
+                // Thai phone number (10 digits starting with 0): 08XXXXXXXX -> 0066XXXXXXXX
+                return '0066' . substr($identifier, 1);
             }
             // 10 digits not starting with 0 - treat as phone without leading 0
-            // Prepend 66 for international format
-            return '66' . $identifier;
+            return '0066' . $identifier;
         } elseif ($length === 9) {
-            // Phone number without leading 0
-            return '66' . $identifier;
+            // Phone number without leading 0: 8XXXXXXXX -> 0066XXXXXXXX
+            return '0066' . $identifier;
         } elseif ($length === 13) {
-            // Thai National ID or Tax ID (13 digits)
+            // Thai National ID or Tax ID (13 digits) - use as-is
             return $identifier;
-        } elseif ($length === 12 && str_starts_with($identifier, '66')) {
-            // Already in international format (66XXXXXXXXX)
-            return $identifier;
-        } elseif ($length === 15 && str_starts_with($identifier, '66')) {
-            // e-Wallet format
+        } elseif ($length === 11 && str_starts_with($identifier, '66')) {
+            // International format without 00 prefix: 66XXXXXXXXX -> 0066XXXXXXXXX
+            return '00' . $identifier;
+        } elseif ($length === 13 && str_starts_with($identifier, '0066')) {
+            // Already in correct PromptPay phone format
             return $identifier;
         }
 
