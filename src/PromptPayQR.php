@@ -19,28 +19,34 @@ class PromptPayQR
     private const COUNTRY_CODE = '58';
     private const CRC = '63';
 
-    private const APP_ID_THAILAND = 'A000000677010111';
-    private const APP_ID_TAG = '00';
-    private const ACCOUNT_TAG = '01';
+    private const AID = 'A000000677010111';
+    private const AID_TAG = '00';
+    private const MOBILE_TAG = '01';      // Sub-tag for phone numbers
+    private const TAX_ID_TAG = '02';      // Sub-tag for National ID / Tax ID
+    private const EWALLET_TAG = '03';     // Sub-tag for e-Wallet ID
 
     private const CURRENCY_THB = '764';
     private const COUNTRY_TH = 'TH';
 
+    private const TYPE_MOBILE = 'mobile';
+    private const TYPE_TAX_ID = 'tax_id';
+    private const TYPE_EWALLET = 'ewallet';
+
     /**
      * Generate PromptPay QR code payload string
      *
-     * @param string $identifier Phone number (format: 0812345678) or National ID (format: 1234567890123)
+     * @param string $identifier Phone number (0812345678), National ID (1234567890123), or e-Wallet ID
      * @param float|null $amount Payment amount (optional)
      * @return string PromptPay payload string
      */
     public function generatePayload(string $identifier, ?float $amount = null): string
     {
-        $identifier = $this->formatIdentifier($identifier);
+        $parsed = $this->parseIdentifier($identifier);
 
         $payload = '';
         $payload .= $this->buildTag(self::PAYLOAD_FORMAT_INDICATOR, '01');
-        $payload .= $this->buildTag(self::POI_METHOD, '12');
-        $payload .= $this->buildMerchantInformation($identifier);
+        $payload .= $this->buildTag(self::POI_METHOD, $amount !== null && $amount > 0 ? '12' : '11');
+        $payload .= $this->buildMerchantInformation($parsed['value'], $parsed['type']);
         $payload .= $this->buildTag(self::TRANSACTION_CURRENCY, self::CURRENCY_THB);
 
         if ($amount !== null && $amount > 0) {
@@ -48,22 +54,15 @@ class PromptPayQR
         }
 
         $payload .= $this->buildTag(self::COUNTRY_CODE, self::COUNTRY_TH);
-        $payload .= self::CRC . '04'; // CRC tag with length 04
+        $payload .= self::CRC . '04';
 
-        // Calculate CRC16-CCITT over payload including "6304"
         $crc = $this->calculateCRC16($payload);
 
-        // Append 4-char CRC checksum
         return $payload . strtoupper($crc);
     }
 
     /**
      * Generate QR code image as data URI
-     *
-     * @param string $identifier Phone number or National ID
-     * @param float|null $amount Payment amount (optional)
-     * @param int $size QR code size in pixels
-     * @return string Data URI of QR code image
      */
     public function generateQRCode(string $identifier, ?float $amount = null, int $size = 300): string
     {
@@ -85,11 +84,6 @@ class PromptPayQR
 
     /**
      * Generate QR code image as PNG binary
-     *
-     * @param string $identifier Phone number or National ID
-     * @param float|null $amount Payment amount (optional)
-     * @param int $size QR code size in pixels
-     * @return string PNG binary data
      */
     public function generateQRCodeBinary(string $identifier, ?float $amount = null, int $size = 300): string
     {
@@ -110,77 +104,88 @@ class PromptPayQR
     }
 
     /**
-     * Format identifier (phone number or national ID)
+     * Parse and validate identifier, returning type and formatted value
      *
      * @param string $identifier
-     * @return string Formatted identifier
+     * @return array{type: string, value: string}
      * @throws InvalidArgumentException
      */
-    private function formatIdentifier(string $identifier): string
+    private function parseIdentifier(string $identifier): array
     {
-        // Remove all non-numeric characters
-        $identifier = preg_replace('/[^0-9]/', '', $identifier);
-        $length = strlen($identifier);
+        $cleaned = preg_replace('/[^0-9]/', '', $identifier);
+        $length = strlen($cleaned);
 
+        // E-wallet ID (15 digits)
+        if ($length === 15) {
+            return ['type' => self::TYPE_EWALLET, 'value' => $cleaned];
+        }
+
+        // National ID or Tax ID (13 digits, doesn't start with 0066)
+        if ($length === 13 && !str_starts_with($cleaned, '0066')) {
+            return ['type' => self::TYPE_TAX_ID, 'value' => $cleaned];
+        }
+
+        // Phone already in PromptPay format (0066XXXXXXXXX)
+        if ($length === 13 && str_starts_with($cleaned, '0066')) {
+            return ['type' => self::TYPE_MOBILE, 'value' => $cleaned];
+        }
+
+        // Thai phone number (10 digits starting with 0): 08XXXXXXXX -> 0066XXXXXXXX
+        if ($length === 10 && $cleaned[0] === '0') {
+            return ['type' => self::TYPE_MOBILE, 'value' => '0066' . substr($cleaned, 1)];
+        }
+
+        // Phone number without leading 0 (9 digits): 8XXXXXXXX -> 00668XXXXXXXX
+        if ($length === 9) {
+            return ['type' => self::TYPE_MOBILE, 'value' => '0066' . $cleaned];
+        }
+
+        // 10 digits not starting with 0 - non-standard format, prepend 00 and let bank handle it
         if ($length === 10) {
-            if ($identifier[0] === '0') {
-                // Thai phone number (10 digits starting with 0): 08XXXXXXXX -> 0066XXXXXXXX
-                return '0066' . substr($identifier, 1);
-            }
-            // 10 digits not starting with 0 - treat as phone without leading 0
-            return '0066' . $identifier;
-        } elseif ($length === 9) {
-            // Phone number without leading 0: 8XXXXXXXX -> 0066XXXXXXXX
-            return '0066' . $identifier;
-        } elseif ($length === 13) {
-            // Thai National ID or Tax ID (13 digits) - use as-is
-            return $identifier;
-        } elseif ($length === 11 && str_starts_with($identifier, '66')) {
-            // International format without 00 prefix: 66XXXXXXXXX -> 0066XXXXXXXXX
-            return '00' . $identifier;
-        } elseif ($length === 13 && str_starts_with($identifier, '0066')) {
-            // Already in correct PromptPay phone format
-            return $identifier;
+            return ['type' => self::TYPE_MOBILE, 'value' => '00' . $cleaned];
+        }
+
+        // International format 66XXXXXXXXX (11 digits)
+        if ($length === 11 && str_starts_with($cleaned, '66')) {
+            return ['type' => self::TYPE_MOBILE, 'value' => '00' . $cleaned];
         }
 
         throw new InvalidArgumentException(
-            'Invalid identifier format. Use Thai phone number (0812345678) or National ID (1234567890123)'
+            'Invalid identifier. Use: phone (0812345678), National ID (1234567890123), or e-Wallet (15 digits)'
         );
     }
 
     /**
-     * Build merchant information tag
-     *
-     * @param string $identifier
-     * @return string
+     * Build merchant information tag with correct sub-tag based on identifier type
      */
-    private function buildMerchantInformation(string $identifier): string
+    private function buildMerchantInformation(string $identifier, string $type): string
     {
-        $appId = $this->buildTag(self::APP_ID_TAG, self::APP_ID_THAILAND);
-        $account = $this->buildTag(self::ACCOUNT_TAG, $identifier);
-        $merchantInfo = $appId . $account;
+        $aid = $this->buildTag(self::AID_TAG, self::AID);
+
+        $accountTag = match ($type) {
+            self::TYPE_MOBILE => self::MOBILE_TAG,
+            self::TYPE_TAX_ID => self::TAX_ID_TAG,
+            self::TYPE_EWALLET => self::EWALLET_TAG,
+            default => self::MOBILE_TAG,
+        };
+
+        $account = $this->buildTag($accountTag, $identifier);
+        $merchantInfo = $aid . $account;
 
         return $this->buildTag(self::MERCHANT_INFORMATION, $merchantInfo);
     }
 
     /**
      * Build EMV tag
-     *
-     * @param string $tag
-     * @param string $value
-     * @return string
      */
     private function buildTag(string $tag, string $value): string
     {
         $length = strlen($value);
-        return $tag . str_pad((string)$length, 2, '0', STR_PAD_LEFT) . $value;
+        return $tag . str_pad((string) $length, 2, '0', STR_PAD_LEFT) . $value;
     }
 
     /**
      * Calculate CRC16-CCITT checksum
-     *
-     * @param string $data
-     * @return string
      */
     private function calculateCRC16(string $data): string
     {
