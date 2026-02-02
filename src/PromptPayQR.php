@@ -33,14 +33,198 @@ class PromptPayQR
     private const TYPE_EWALLET = 'ewallet';
 
     /**
+     * Get supported identifier formats
+     *
+     * @return array<string, array{supported: bool, sub_tag: string|null, format: string, example: string}>
+     */
+    public static function getSupportedFormats(): array
+    {
+        return [
+            'mobile' => [
+                'supported' => true,
+                'sub_tag' => '01',
+                'format' => '10 digits starting with 06, 08, or 09',
+                'example' => '0812345678',
+            ],
+            'national_id' => [
+                'supported' => true,
+                'sub_tag' => '02',
+                'format' => '13 digits (Thai National ID)',
+                'example' => '1234567890123',
+            ],
+            'tax_id' => [
+                'supported' => true,
+                'sub_tag' => '02',
+                'format' => '13 digits (Tax ID)',
+                'example' => '0123456789012',
+            ],
+            'ewallet' => [
+                'supported' => true,
+                'sub_tag' => '03',
+                'format' => '15 digits',
+                'example' => '123456789012345',
+            ],
+            'bank_account' => [
+                'supported' => false,
+                'sub_tag' => null,
+                'format' => 'NOT SUPPORTED (BOT spec: reserved)',
+                'example' => '-',
+            ],
+        ];
+    }
+
+    /**
+     * Validate identifier without generating QR
+     *
+     * @param string $identifier Phone, National ID, or e-Wallet ID
+     * @return array{valid: bool, type: string|null, formatted: string|null, error: string|null}
+     */
+    public function validate(string $identifier): array
+    {
+        try {
+            $parsed = $this->parseIdentifier($identifier);
+
+            return [
+                'valid' => true,
+                'type' => $parsed['type'],
+                'formatted' => $parsed['value'],
+                'error' => null,
+            ];
+        } catch (InvalidArgumentException $e) {
+            return [
+                'valid' => false,
+                'type' => null,
+                'formatted' => null,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Validate amount
+     *
+     * @param float|null $amount
+     * @return array{valid: bool, error: string|null}
+     */
+    public function validateAmount(?float $amount): array
+    {
+        if ($amount === null) {
+            return ['valid' => true, 'error' => null];
+        }
+
+        if ($amount < 0) {
+            return ['valid' => false, 'error' => 'Amount cannot be negative'];
+        }
+
+        if ($amount > 999999999.99) {
+            return ['valid' => false, 'error' => 'Amount exceeds maximum (999,999,999.99)'];
+        }
+
+        return ['valid' => true, 'error' => null];
+    }
+
+    /**
+     * Get identifier type without generating QR
+     *
+     * @param string $identifier
+     * @return string|null Returns 'mobile', 'tax_id', 'ewallet', or null if invalid
+     */
+    public function getIdentifierType(string $identifier): ?string
+    {
+        $result = $this->validate($identifier);
+
+        return $result['type'];
+    }
+
+    /**
+     * Check if identifier is a valid Thai mobile number
+     *
+     * @param string $identifier
+     * @return bool
+     */
+    public function isMobileNumber(string $identifier): bool
+    {
+        $cleaned = preg_replace('/[^0-9]/', '', $identifier);
+
+        // Thai mobile: 10 digits starting with 06, 08, or 09
+        if (strlen($cleaned) === 10 && preg_match('/^0[689]/', $cleaned)) {
+            return true;
+        }
+
+        // International format: 66XXXXXXXXX (11 digits)
+        if (strlen($cleaned) === 11 && str_starts_with($cleaned, '66')) {
+            return true;
+        }
+
+        // PromptPay format: 0066XXXXXXXXX (13 digits)
+        if (strlen($cleaned) === 13 && str_starts_with($cleaned, '0066')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if identifier is a valid Thai National ID (with checksum validation)
+     *
+     * @param string $identifier
+     * @return bool
+     */
+    public function isNationalId(string $identifier): bool
+    {
+        $cleaned = preg_replace('/[^0-9]/', '', $identifier);
+
+        if (strlen($cleaned) !== 13) {
+            return false;
+        }
+
+        // Skip if it looks like a phone number
+        if (str_starts_with($cleaned, '0066')) {
+            return false;
+        }
+
+        // Validate checksum (Thai National ID algorithm)
+        $sum = 0;
+        for ($i = 0; $i < 12; $i++) {
+            $sum += (int) $cleaned[$i] * (13 - $i);
+        }
+
+        $checkDigit = (11 - ($sum % 11)) % 10;
+
+        return $checkDigit === (int) $cleaned[12];
+    }
+
+    /**
+     * Check if identifier is a valid Tax ID
+     *
+     * @param string $identifier
+     * @return bool
+     */
+    public function isTaxId(string $identifier): bool
+    {
+        $cleaned = preg_replace('/[^0-9]/', '', $identifier);
+
+        // Tax ID is 13 digits, not starting with 0066
+        return strlen($cleaned) === 13 && ! str_starts_with($cleaned, '0066');
+    }
+
+    /**
      * Generate PromptPay QR code payload string
      *
      * @param string $identifier Phone number (0812345678), National ID (1234567890123), or e-Wallet ID
      * @param float|null $amount Payment amount (optional)
      * @return string PromptPay payload string
+     *
+     * @throws InvalidArgumentException
      */
     public function generatePayload(string $identifier, ?float $amount = null): string
     {
+        // Validate amount
+        $amountValidation = $this->validateAmount($amount);
+        if (! $amountValidation['valid']) {
+            throw new InvalidArgumentException($amountValidation['error']);
+        }
+
         $parsed = $this->parseIdentifier($identifier);
 
         $payload = '';
@@ -151,7 +335,11 @@ class PromptPayQR
         }
 
         throw new InvalidArgumentException(
-            'Invalid identifier. Use: phone (0812345678), National ID (1234567890123), or e-Wallet (15 digits)'
+            'Invalid PromptPay ID format. Supported formats: ' .
+            'Mobile phone (10 digits starting with 06/08/09), ' .
+            'National ID/Tax ID (13 digits), ' .
+            'e-Wallet (15 digits). ' .
+            'Note: Bank account numbers are NOT supported (BOT spec: reserved).'
         );
     }
 
