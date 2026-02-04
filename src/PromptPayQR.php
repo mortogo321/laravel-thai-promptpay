@@ -12,24 +12,37 @@ use InvalidArgumentException;
 class PromptPayQR
 {
     private const PAYLOAD_FORMAT_INDICATOR = '00';
+
     private const POI_METHOD = '01';
+
     private const MERCHANT_INFORMATION = '29';
+
     private const TRANSACTION_CURRENCY = '53';
+
     private const TRANSACTION_AMOUNT = '54';
+
     private const COUNTRY_CODE = '58';
+
     private const CRC = '63';
 
     private const AID = 'A000000677010111';
+
     private const AID_TAG = '00';
+
     private const MOBILE_TAG = '01';      // Sub-tag for phone numbers
+
     private const TAX_ID_TAG = '02';      // Sub-tag for National ID / Tax ID
+
     private const EWALLET_TAG = '03';     // Sub-tag for e-Wallet ID
 
     private const CURRENCY_THB = '764';
+
     private const COUNTRY_TH = 'TH';
 
     private const TYPE_MOBILE = 'mobile';
+
     private const TYPE_TAX_ID = 'tax_id';
+
     private const TYPE_EWALLET = 'ewallet';
 
     /**
@@ -76,7 +89,7 @@ class PromptPayQR
     /**
      * Validate identifier without generating QR
      *
-     * @param string $identifier Phone, National ID, or e-Wallet ID
+     * @param  string  $identifier  Phone, National ID, or e-Wallet ID
      * @return array{valid: bool, type: string|null, formatted: string|null, error: string|null}
      */
     public function validate(string $identifier): array
@@ -103,7 +116,6 @@ class PromptPayQR
     /**
      * Validate amount
      *
-     * @param float|null $amount
      * @return array{valid: bool, error: string|null}
      */
     public function validateAmount(?float $amount): array
@@ -120,13 +132,17 @@ class PromptPayQR
             return ['valid' => false, 'error' => 'Amount exceeds maximum (999,999,999.99)'];
         }
 
+        // Check for valid decimal places (max 2 for Thai Baht)
+        if (fmod($amount * 100, 1) != 0) {
+            return ['valid' => false, 'error' => 'Amount must have at most 2 decimal places'];
+        }
+
         return ['valid' => true, 'error' => null];
     }
 
     /**
      * Get identifier type without generating QR
      *
-     * @param string $identifier
      * @return string|null Returns 'mobile', 'tax_id', 'ewallet', or null if invalid
      */
     public function getIdentifierType(string $identifier): ?string
@@ -138,9 +154,6 @@ class PromptPayQR
 
     /**
      * Check if identifier is a valid Thai mobile number
-     *
-     * @param string $identifier
-     * @return bool
      */
     public function isMobileNumber(string $identifier): bool
     {
@@ -166,9 +179,6 @@ class PromptPayQR
 
     /**
      * Check if identifier is a valid Thai National ID (with checksum validation)
-     *
-     * @param string $identifier
-     * @return bool
      */
     public function isNationalId(string $identifier): bool
     {
@@ -196,9 +206,6 @@ class PromptPayQR
 
     /**
      * Check if identifier is a valid Tax ID
-     *
-     * @param string $identifier
-     * @return bool
      */
     public function isTaxId(string $identifier): bool
     {
@@ -211,8 +218,8 @@ class PromptPayQR
     /**
      * Generate PromptPay QR code payload string
      *
-     * @param string $identifier Phone number (0812345678), National ID (1234567890123), or e-Wallet ID
-     * @param float|null $amount Payment amount (optional)
+     * @param  string  $identifier  Phone number (0812345678), National ID (1234567890123), or e-Wallet ID
+     * @param  float|null  $amount  Payment amount (optional)
      * @return string PromptPay payload string
      *
      * @throws InvalidArgumentException
@@ -252,18 +259,17 @@ class PromptPayQR
     {
         $payload = $this->generatePayload($identifier, $amount);
 
-        $result = Builder::create()
-            ->writer(new PngWriter())
-            ->writerOptions([])
-            ->data($payload)
-            ->encoding(new Encoding('UTF-8'))
-            ->errorCorrectionLevel(ErrorCorrectionLevel::Low)
-            ->size($size)
-            ->margin(10)
-            ->roundBlockSizeMode(RoundBlockSizeMode::Margin)
-            ->build();
+        $builder = new Builder(
+            writer: new PngWriter,
+            data: $payload,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::Low,
+            size: $size,
+            margin: 10,
+            roundBlockSizeMode: RoundBlockSizeMode::Margin,
+        );
 
-        return $result->getDataUri();
+        return $builder->build()->getDataUri();
     }
 
     /**
@@ -273,30 +279,36 @@ class PromptPayQR
     {
         $payload = $this->generatePayload($identifier, $amount);
 
-        $result = Builder::create()
-            ->writer(new PngWriter())
-            ->writerOptions([])
-            ->data($payload)
-            ->encoding(new Encoding('UTF-8'))
-            ->errorCorrectionLevel(ErrorCorrectionLevel::Low)
-            ->size($size)
-            ->margin(10)
-            ->roundBlockSizeMode(RoundBlockSizeMode::Margin)
-            ->build();
+        $builder = new Builder(
+            writer: new PngWriter,
+            data: $payload,
+            encoding: new Encoding('UTF-8'),
+            errorCorrectionLevel: ErrorCorrectionLevel::Low,
+            size: $size,
+            margin: 10,
+            roundBlockSizeMode: RoundBlockSizeMode::Margin,
+        );
 
-        return $result->getString();
+        return $builder->build()->getString();
     }
 
     /**
      * Parse and validate identifier, returning type and formatted value
      *
-     * @param string $identifier
      * @return array{type: string, value: string}
+     *
      * @throws InvalidArgumentException
      */
     private function parseIdentifier(string $identifier): array
     {
         $cleaned = preg_replace('/[^0-9]/', '', $identifier);
+
+        if (empty($cleaned)) {
+            throw new InvalidArgumentException(
+                'Invalid PromptPay ID: identifier must contain numeric characters'
+            );
+        }
+
         $length = strlen($cleaned);
 
         // E-wallet ID (15 digits)
@@ -305,7 +317,7 @@ class PromptPayQR
         }
 
         // National ID or Tax ID (13 digits, doesn't start with 0066)
-        if ($length === 13 && !str_starts_with($cleaned, '0066')) {
+        if ($length === 13 && ! str_starts_with($cleaned, '0066')) {
             return ['type' => self::TYPE_TAX_ID, 'value' => $cleaned];
         }
 
@@ -369,7 +381,27 @@ class PromptPayQR
     private function buildTag(string $tag, string $value): string
     {
         $length = strlen($value);
+
         return $tag . str_pad((string) $length, 2, '0', STR_PAD_LEFT) . $value;
+    }
+
+    /**
+     * Validate CRC16-CCITT checksum of a complete payload
+     *
+     * @param  string  $payload  Complete PromptPay payload string
+     * @return bool True if checksum is valid
+     */
+    public function validatePayload(string $payload): bool
+    {
+        if (strlen($payload) < 8) {
+            return false;
+        }
+
+        $expectedCrc = substr($payload, -4);
+        $dataWithoutCrc = substr($payload, 0, -4);
+        $calculatedCrc = $this->calculateCRC16($dataWithoutCrc);
+
+        return strtoupper($expectedCrc) === strtoupper($calculatedCrc);
     }
 
     /**
@@ -393,6 +425,7 @@ class PromptPayQR
         }
 
         $crc = $crc & 0xFFFF;
+
         return strtoupper(str_pad(dechex($crc), 4, '0', STR_PAD_LEFT));
     }
 }

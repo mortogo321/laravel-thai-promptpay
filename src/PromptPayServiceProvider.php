@@ -17,7 +17,7 @@ class PromptPayServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton('promptpay', function ($app) {
-            return new PromptPayQR();
+            return new PromptPayQR;
         });
     }
 

@@ -3,8 +3,11 @@
 namespace Mortogo321\LaravelThaiPromptPay\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
+use InvalidArgumentException;
+use Mortogo321\LaravelThaiPromptPay\Http\Requests\GeneratePromptPayRequest;
+use Mortogo321\LaravelThaiPromptPay\Http\Requests\PayloadPromptPayRequest;
 use Mortogo321\LaravelThaiPromptPay\PromptPayQR;
 
 class PromptPayController extends Controller
@@ -18,17 +21,10 @@ class PromptPayController extends Controller
 
     /**
      * Generate PromptPay QR code
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
-    public function generate(Request $request): JsonResponse
+    public function generate(GeneratePromptPayRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'identifier' => 'required|string',
-            'amount' => 'nullable|numeric|min:0',
-            'size' => 'nullable|integer|min:100|max:1000',
-        ]);
+        $validated = $request->validated();
 
         try {
             $qrCode = $this->promptPay->generateQRCode(
@@ -46,7 +42,7 @@ class PromptPayController extends Controller
                 'type' => $identifierType,
                 'amount' => $validated['amount'] ?? null,
             ]);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -56,16 +52,10 @@ class PromptPayController extends Controller
 
     /**
      * Generate PromptPay payload string only
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
-    public function payload(Request $request): JsonResponse
+    public function payload(PayloadPromptPayRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'identifier' => 'required|string',
-            'amount' => 'nullable|numeric|min:0',
-        ]);
+        $validated = $request->validated();
 
         try {
             $payload = $this->promptPay->generatePayload(
@@ -79,7 +69,7 @@ class PromptPayController extends Controller
                 'identifier' => $validated['identifier'],
                 'amount' => $validated['amount'] ?? null,
             ]);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -89,17 +79,10 @@ class PromptPayController extends Controller
 
     /**
      * Download PromptPay QR code as PNG
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\Response
      */
-    public function download(Request $request)
+    public function download(GeneratePromptPayRequest $request): Response|JsonResponse
     {
-        $validated = $request->validate([
-            'identifier' => 'required|string',
-            'amount' => 'nullable|numeric|min:0',
-            'size' => 'nullable|integer|min:100|max:1000',
-        ]);
+        $validated = $request->validated();
 
         try {
             $binary = $this->promptPay->generateQRCodeBinary(
@@ -108,12 +91,12 @@ class PromptPayController extends Controller
                 $validated['size'] ?? 300
             );
 
-            $filename = 'promptpay-' . time() . '.png';
+            $filename = 'promptpay-' . uniqid() . '.png';
 
             return response($binary)
                 ->header('Content-Type', 'image/png')
                 ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
