@@ -2,6 +2,30 @@
 
 All notable changes to `laravel-thai-promptpay` will be documented in this file.
 
+## v2.1.0 - 2026-02-04
+
+### Added
+- **Test Suite:** 68 tests with 151 assertions (Unit + Feature tests)
+- **Code Quality:** Laravel Pint integration with pre-commit hook
+- `validatePayload(string $payload)` - Verify CRC16-CCITT checksum of generated payloads
+- Form Request classes for API validation (`GeneratePromptPayRequest`, `PayloadPromptPayRequest`)
+- Rate limiting on API endpoints (60 requests per minute)
+- Decimal place validation for amounts (max 2 decimal places for Thai Baht)
+- Empty identifier edge case handling
+
+### Changed
+- **PHP 8.5 Support:** Full compatibility with PHP 8.2 - 8.5
+- **Laravel 12 Support:** Updated dependencies for Laravel 12.x
+- Upgraded `endroid/qr-code` from v5 to v6 for PHP 8.5 compatibility
+- Upgraded `orchestra/testbench` to v10 for testing
+- Upgraded `phpunit/phpunit` to v12
+- Updated Facade docblock with all public methods for better IDE support
+- Improved input validation with max length constraints
+- Enhanced API error responses
+
+### Fixed
+- PHP 8.5 deprecation warnings (PDO constants, QR code builder)
+
 ## v2.0.5 - 2026-02-02
 
 ### Changed
