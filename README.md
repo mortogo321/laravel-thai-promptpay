@@ -5,6 +5,7 @@
 [![GitHub License](https://img.shields.io/github/license/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://github.com/mortogo321/laravel-thai-promptpay/blob/main/LICENSE)
 [![PHP Version](https://img.shields.io/packagist/php-v/mortogo321/laravel-thai-promptpay.svg?style=flat-square)](https://packagist.org/packages/mortogo321/laravel-thai-promptpay)
 [![Laravel Version](https://img.shields.io/badge/Laravel-10.x%20|%2011.x%20|%2012.x-red?style=flat-square)](https://laravel.com)
+[![Tests](https://img.shields.io/badge/Tests-68%20passed-brightgreen?style=flat-square)](https://github.com/mortogo321/laravel-thai-promptpay)
 [![GitHub Stars](https://img.shields.io/github/stars/mortogo321/laravel-thai-promptpay?style=flat-square)](https://github.com/mortogo321/laravel-thai-promptpay/stargazers)
 
 A Laravel package for generating Thai PromptPay QR codes following the **BOT (Bank of Thailand) Thai QR Payment Standard**. Supports phone numbers, National ID, Tax ID, and e-Wallet with full validation.
@@ -27,15 +28,17 @@ A Laravel package for generating Thai PromptPay QR codes following the **BOT (Ba
 - Support for phone numbers, National ID, Tax ID, and e-Wallet
 - **Validation methods** for identifier and amount checking
 - **Thai National ID checksum validation**
+- **Payload CRC verification** for integrity checking
 - Support for fixed amount and open amount payments
 - Returns QR code as data URI or binary PNG
-- Built-in AJAX/API endpoints for dynamic generation
+- Built-in AJAX/API endpoints with rate limiting
 - Works with Axios, Fetch, Vue.js, React, and any frontend framework
 - Laravel auto-discovery support
+- **Full test suite** (68 tests, 151 assertions)
 
 ## Requirements
 
-- PHP 8.2 or higher
+- PHP 8.2 - 8.5
 - Laravel 10.x, 11.x, or 12.x
 
 ## Installation
@@ -93,7 +96,7 @@ class PaymentController extends Controller
 }
 ```
 
-## Validation (v2.0.4+)
+## Validation
 
 ### Validate Identifier
 
@@ -113,9 +116,22 @@ $result = $qr->validate('invalid');
 ### Validate Amount
 
 ```php
-$qr->validateAmount(100.50);      // ['valid' => true, 'error' => null]
-$qr->validateAmount(-50);         // ['valid' => false, 'error' => 'Amount cannot be negative']
-$qr->validateAmount(9999999999);  // ['valid' => false, 'error' => 'Amount exceeds maximum...']
+$qr->validateAmount(100.50);       // ['valid' => true, 'error' => null]
+$qr->validateAmount(-50);          // ['valid' => false, 'error' => 'Amount cannot be negative']
+$qr->validateAmount(9999999999);   // ['valid' => false, 'error' => 'Amount exceeds maximum...']
+$qr->validateAmount(100.123);      // ['valid' => false, 'error' => 'Amount must have at most 2 decimal places']
+```
+
+### Validate Payload Integrity
+
+```php
+// Verify CRC checksum of a generated payload
+$payload = $qr->generatePayload('0812345678', 100.00);
+$isValid = $qr->validatePayload($payload);  // true
+
+// Detect corrupted payload
+$corrupted = substr($payload, 0, 10) . 'X' . substr($payload, 11);
+$isValid = $qr->validatePayload($corrupted);  // false
 ```
 
 ### Type Detection
@@ -153,14 +169,16 @@ $formats = PromptPayQR::getSupportedFormats();
 
 ### Available API Endpoints
 
+All endpoints are rate-limited to **60 requests per minute**.
+
 #### Generate QR Code
 **POST** `/promptpay/generate`
 
 ```javascript
 axios.post('/promptpay/generate', {
     identifier: '0812345678',  // Phone, National ID, or e-Wallet
-    amount: 100.50,            // Optional
-    size: 300                  // Optional (default: 300)
+    amount: 100.50,            // Optional (max 999,999,999.99, max 2 decimals)
+    size: 300                  // Optional (100-1000, default: 300)
 })
 .then(response => {
     // response.data: { success, qr_code, identifier, type, amount }
@@ -189,6 +207,27 @@ axios.post('/promptpay/download', {
 }, { responseType: 'blob' });
 ```
 
+### API Response Format
+
+**Success Response (200)**
+```json
+{
+    "success": true,
+    "qr_code": "data:image/png;base64,...",
+    "identifier": "0812345678",
+    "type": "mobile",
+    "amount": 100.50
+}
+```
+
+**Error Response (422)**
+```json
+{
+    "success": false,
+    "message": "Invalid PromptPay ID format..."
+}
+```
+
 ## Identifier Format Details
 
 ### Phone Numbers
@@ -210,7 +249,10 @@ axios.post('/promptpay/download', {
 Validate identifier without generating QR.
 
 ### `validateAmount(?float $amount): array`
-Validate payment amount.
+Validate payment amount (max 2 decimal places, max 999,999,999.99).
+
+### `validatePayload(string $payload): bool`
+Verify CRC16-CCITT checksum of a complete payload.
 
 ### `getIdentifierType(string $identifier): ?string`
 Get identifier type ('mobile', 'tax_id', 'ewallet', or null).
@@ -220,6 +262,9 @@ Check if valid Thai mobile number (06/08/09).
 
 ### `isNationalId(string $identifier): bool`
 Check if valid National ID with checksum validation.
+
+### `isTaxId(string $identifier): bool`
+Check if valid Tax ID (13 digits).
 
 ### `generatePayload(string $identifier, ?float $amount = null): string`
 Generate PromptPay EMV QR code payload string.
@@ -248,12 +293,44 @@ Reference: [BOT Thai QR Payment Specification](https://www.bot.or.th/content/dam
 ## Testing
 
 ```bash
+# Run all tests
 composer test
+
+# Run tests with coverage
+composer test:coverage
+
+# Run specific test suite
+./vendor/bin/phpunit --testsuite=Unit
+./vendor/bin/phpunit --testsuite=Feature
 ```
+
+**Test Coverage:** 68 tests, 151 assertions
+
+## Code Quality
+
+This package uses [Laravel Pint](https://laravel.com/docs/pint) for code style.
+
+```bash
+# Check code style
+composer lint
+
+# Fix code style
+composer lint:fix
+```
+
+A pre-commit hook is included to automatically check code style before commits.
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Run tests (`composer test`)
+4. Run linting (`composer lint:fix`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 
